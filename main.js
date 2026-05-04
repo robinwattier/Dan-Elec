@@ -90,55 +90,127 @@ revealStyle.innerHTML = `
 `;
 document.head.appendChild(revealStyle);
 
-// Secure Contact Form Handling (Asynchronous)
+// Secure Contact Form Handling (Production - Web3Forms)
 const contactForm = document.getElementById('contact-form');
 const formFeedback = document.getElementById('form-feedback');
+
+// Simple client-side rate limiter
+let lastSubmitTime = 0;
+const RATE_LIMIT_MS = 30000; // 30 seconds between submissions
 
 if (contactForm) {
     contactForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
-        const formData = new FormData(contactForm);
+
+        // Rate limiting check
+        const now = Date.now();
+        if (now - lastSubmitTime < RATE_LIMIT_MS) {
+            const waitSec = Math.ceil((RATE_LIMIT_MS - (now - lastSubmitTime)) / 1000);
+            formFeedback.textContent = `Veuillez patienter ${waitSec}s avant de renvoyer.`;
+            formFeedback.className = 'form-feedback error';
+            formFeedback.style.display = 'block';
+            return;
+        }
+
         const submitBtn = document.getElementById('submit-btn');
         const originalContent = submitBtn.innerHTML;
-        
+
         // Disable button to prevent double submission
         submitBtn.innerHTML = '<span>Envoi en cours...</span><i class="ri-loader-4-line ri-spin"></i>';
         submitBtn.disabled = true;
         formFeedback.className = 'form-feedback';
         formFeedback.style.display = 'none';
-        
+
         try {
-            // Replace with actual API endpoint when ready
-            // Example: const response = await fetch(contactForm.action, { method: 'POST', body: formData, headers: { 'Accept': 'application/json' }});
-            
-            // Simulating network request
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            // Assume success for now
-            const isSuccess = true; 
-            
-            if (isSuccess) {
+            const formData = new FormData(contactForm);
+
+            const response = await fetch('https://api.web3forms.com/submit', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                lastSubmitTime = Date.now();
                 formFeedback.textContent = 'Votre demande a été envoyée avec succès. Nous vous contacterons rapidement.';
                 formFeedback.className = 'form-feedback success';
                 contactForm.reset();
             } else {
-                throw new Error('Une erreur est survenue lors de l\'envoi.');
+                throw new Error(result.message || 'Erreur lors de l\'envoi.');
             }
         } catch (error) {
-            formFeedback.textContent = 'Erreur: Impossible d\'envoyer le message. Veuillez réessayer plus tard.';
+            formFeedback.textContent = 'Erreur: Impossible d\'envoyer le message. Veuillez réessayer ou nous contacter par téléphone.';
             formFeedback.className = 'form-feedback error';
+            console.error('Form submission error:', error);
         } finally {
             formFeedback.style.display = 'block';
             submitBtn.innerHTML = originalContent;
             submitBtn.disabled = false;
-            
-            // Auto hide success message after 5 seconds
+
+            // Auto hide success message after 8 seconds
             if (formFeedback.classList.contains('success')) {
                 setTimeout(() => {
                     formFeedback.style.display = 'none';
-                }, 5000);
+                }, 8000);
             }
         }
     });
 }
+
+// Product Carousel Logic
+function initCarousel(carouselId) {
+    const carousel = document.getElementById(carouselId);
+    if (!carousel) return;
+
+    const slides = carousel.querySelectorAll('.carousel-slides img');
+    const dots = carousel.querySelectorAll('.dot');
+    const nextBtn = carousel.querySelector('.next');
+    const prevBtn = carousel.querySelector('.prev');
+    let currentSlide = 0;
+
+    function showSlide(n) {
+        slides[currentSlide].classList.remove('active');
+        dots[currentSlide].classList.remove('active');
+        currentSlide = (n + slides.length) % slides.length;
+        slides[currentSlide].classList.add('active');
+        dots[currentSlide].classList.add('active');
+    }
+
+    nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSlide(currentSlide + 1);
+    });
+
+    prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showSlide(currentSlide - 1);
+    });
+
+    dots.forEach((dot, index) => {
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showSlide(index);
+        });
+    });
+
+    // Auto-advance every 5 seconds
+    let autoPlay = setInterval(() => showSlide(currentSlide + 1), 5000);
+
+    carousel.addEventListener('mouseenter', () => clearInterval(autoPlay));
+    carousel.addEventListener('mouseleave', () => {
+        autoPlay = setInterval(() => showSlide(currentSlide + 1), 5000);
+    });
+}
+
+// Initialize carousels
+document.addEventListener('DOMContentLoaded', () => {
+    initCarousel('ksenia-carousel');
+    initCarousel('caddx-carousel');
+    initCarousel('vanderbilt-carousel');
+    initCarousel('hikvision-carousel');
+    initCarousel('limotec-carousel');
+});
